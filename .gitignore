@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+package-lock.json
+build/
+dist/
+coverage/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+.pytest_cache/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Tor runtime data
+tor_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local dev scripts (contain machine-specific paths)
+start.bat
+stop.bat
+
+# Docker volumes
+postgres_data/

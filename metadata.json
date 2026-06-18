@@ -1,0 +1,5 @@
+{
+  "name": "DeepTrawl",
+  "description": "Deep web leak search — collects and deduplicates IOCs from public threat feeds via Tor",
+  "requestFramePermissions": []
+}

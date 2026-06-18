@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepTrawl Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0c0c0c; color: #e5e5e5; font-family: ui-sans-serif, system-ui, sans-serif; }
+        .panel { background-color: #121212; border: 1px solid #262626; border-radius: 4px; }
+        .input-box { background-color: #0c0c0c; border: 1px solid #404040; color: #fff; }
+        .input-box:focus { outline: none; border-color: #737373; }
+        .btn { background-color: #262626; border: 1px solid #404040; color: #fff; cursor: pointer; transition: background 0.2s; }
+        .btn:hover { background-color: #404040; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .badge { font-family: monospace; font-size: 0.75rem; padding: 2px 8px; border-radius: 2px; }
+        .badge-ip { background-color: #1e3a5f; color: #60a5fa; }
+        .badge-domain { background-color: #1e3f1e; color: #4ade80; }
+        .badge-hash { background-color: #3d1e1e; color: #f87171; }
+        .badge-email { background-color: #3d3a1e; color: #fbbf24; }
+        .badge-wallet { background-color: #2e1e3d; color: #c084fc; }
+        th { text-align: left; padding: 12px; border-bottom: 1px solid #262626; font-weight: normal; color: #a3a3a3; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        td { padding: 10px 12px; border-bottom: 1px solid #1a1a1a; font-size: 0.85rem; font-family: monospace; }
+        tr:hover { background-color: #1a1a1a; }
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 4px; font-size: 0.85rem; z-index: 50; animation: fadeIn 0.3s; }
+        .toast-success { background-color: #1e3f1e; border: 1px solid #4ade80; color: #4ade80; }
+        .toast-error { background-color: #3d1e1e; border: 1px solid #f87171; color: #f87171; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="min-h-screen p-6 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-xl font-medium tracking-wide">DEEPTRAWL</h1>
+                <p class="text-sm text-neutral-500 mt-1">Deep Web Leak Search</p>
+            </div>
+            <div class="flex gap-2">
+                <button id="sync-btn" onclick="triggerSync()" class="btn px-4 py-2 text-sm rounded">Force Sync</button>
+                <button id="rotate-btn" onclick="rotateIdentity()" class="btn px-4 py-2 text-sm rounded flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Rotate Proxy
+                </button>
+            </div>
+        </div>
+
+        <!-- Status cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div class="panel p-4">
+                <h2 class="text-xs text-neutral-500 uppercase tracking-widest mb-1">Database</h2>
+                <p id="db-status" class="text-lg text-neutral-600">--</p>
+            </div>
+            <div class="panel p-4">
+                <h2 class="text-xs text-neutral-500 uppercase tracking-widest mb-1">Total IOCs</h2>
+                <p id="ioc-count" class="text-lg text-neutral-200">--</p>
+            </div>
+            <div class="panel p-4">
+                <h2 class="text-xs text-neutral-500 uppercase tracking-widest mb-1">Feeds</h2>
+                <p id="feed-count" class="text-lg text-neutral-200">--</p>
+            </div>
+            <div class="panel p-4">
+                <h2 class="text-xs text-neutral-500 uppercase tracking-widest mb-1">Last Sync</h2>
+                <p id="last-sync" class="text-sm text-neutral-400">--</p>
+            </div>
+        </div>
+
+        <!-- Add feed -->
+        <div class="panel p-4 mb-6">
+            <h2 class="text-xs text-neutral-500 uppercase tracking-widest mb-3">Add Feed Source</h2>
+            <div class="flex gap-2">
+                <input id="new-feed-url" type="url" placeholder="https://example.com/feed.txt" class="input-box flex-1 rounded px-3 py-2 text-sm">
+                <button onclick="addFeed()" class="btn px-5 py-2 rounded text-sm">Add</button>
+            </div>
+            <p class="text-xs text-neutral-600 mt-2">Accepts plain-text IOC feeds (.txt, .netset, .csv). One IOC per line.</p>
+        </div>
+
+        <!-- Indicators table -->
+        <div class="panel overflow-hidden">
+            <div class="p-4 border-b border-neutral-800 flex justify-between items-center bg-[#181818]">
+                <h2 class="text-xs text-neutral-400 uppercase tracking-widest">Indicators</h2>
+                <div class="flex gap-2">
+                    <select id="filter-type" onchange="loadIndicators(1)" class="input-box rounded px-2 py-1 text-xs">
+                        <option value="all">ALL TYPES</option>
+                        <option value="ipv4">IPv4</option>
+                        <option value="domain">DOMAIN</option>
+                        <option value="md5">MD5</option>
+                        <option value="sha256">SHA256</option>
+                        <option value="email">EMAIL</option>
+                        <option value="btc_wallet">BTC</option>
+                        <option value="xmr_wallet">XMR</option>
+                    </select>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Type</th>
+                            <th>Value</th>
+                            <th>Source</th>
+                        </tr>
+                    </thead>
+                    <tbody id="indicators-body">
+                        <tr><td colspan="4" class="text-center text-neutral-500 py-8">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="pagination" class="p-3 flex justify-center gap-2 border-t border-neutral-800">
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast" style="display:none;"></div>
+
+    <script>
+        const API = '/api/v1';
+        let currentPage = 1;
+
+        function showToast(msg, type) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast toast-' + type;
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 3000);
+        }
+
+        async function loadStats() {
+            try {
+                const [health, feeds] = await Promise.all([
+                    fetch(API + '/health').then(r => r.json()),
+                    fetch(API + '/feeds').then(r => r.json())
+                ]);
+                document.getElementById('db-status').textContent = health.status === 'healthy' ? 'Online' : 'Offline';
+                document.getElementById('db-status').className = 'text-lg ' + (health.status === 'healthy' ? 'text-green-400' : 'text-red-400');
+                document.getElementById('feed-count').textContent = feeds.feeds ? feeds.feeds.length : 0;
+            } catch(e) {}
+        }
+
+        function badgeForType(type) {
+            const map = { ipv4: 'badge-ip', domain: 'badge-domain', md5: 'badge-hash', sha256: 'badge-hash', email: 'badge-email', btc_wallet: 'badge-wallet', xmr_wallet: 'badge-wallet' };
+            return map[type] || '';
+        }
+
+        async function loadIndicators(page) {
+            currentPage = page || currentPage;
+            const type = document.getElementById('filter-type').value;
+            const limit = 12;
+            try {
+                const res = await fetch(API + '/indicators?page=' + currentPage + '&limit=' + limit + '&ioc_type=' + type);
+                const data = await res.json();
+                document.getElementById('ioc-count').textContent = data.total || 0;
+
+                const tbody = document.getElementById('indicators-body');
+                if (data.indicators && data.indicators.length > 0) {
+                    tbody.innerHTML = data.indicators.map(ioc => {
+                        const date = new Date(ioc.created_at);
+                        const ts = date.toLocaleString();
+                        const source = ioc.source ? ioc.source.split('/').pop() : '-';
+                        const truncated = ioc.ioc.length > 60 ? ioc.ioc.substring(0, 57) + '...' : ioc.ioc;
+                        return '<tr>' +
+                            '<td class="text-neutral-500 text-xs">' + ts + '</td>' +
+                            '<td><span class="badge ' + badgeForType(ioc.type) + '">' + ioc.type.toUpperCase() + '</span></td>' +
+                            '<td class="text-neutral-200" title="' + ioc.ioc + '">' + truncated + '</td>' +
+                            '<td class="text-neutral-500 truncate max-w-[200px]" title="' + (ioc.source || '') + '">' + source + '</td>' +
+                            '</tr>';
+                    }).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-neutral-500 py-8">No indicators found. Click Force Sync to collect data.</td></tr>';
+                }
+
+                const totalPages = Math.ceil((data.total || 0) / limit);
+                const pagDiv = document.getElementById('pagination');
+                if (totalPages > 1) {
+                    let html = '';
+                    for (let i = 1; i <= Math.min(totalPages, 10); i++) {
+                        html += '<button onclick="loadIndicators(' + i + ')" class="btn px-3 py-1 text-xs rounded ' + (i === currentPage ? 'bg-neutral-600' : '') + '">' + i + '</button>';
+                    }
+                    pagDiv.innerHTML = html;
+                } else {
+                    pagDiv.innerHTML = '';
+                }
+            } catch(e) {
+                document.getElementById('indicators-body').innerHTML = '<tr><td colspan="4" class="text-center text-red-400 py-8">Failed to load data</td></tr>';
+            }
+        }
+
+        async function triggerSync() {
+            const btn = document.getElementById('sync-btn');
+            btn.disabled = true;
+            btn.textContent = 'Syncing...';
+            try {
+                const res = await fetch(API + '/trigger', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast('Collected ' + (data.processed_iocs || 0) + ' IOCs', 'success');
+                    document.getElementById('last-sync').textContent = new Date().toLocaleString();
+                } else {
+                    showToast(data.error || 'Sync failed', 'error');
+                }
+            } catch(e) {
+                showToast('Connection error', 'error');
+            }
+            btn.disabled = false;
+            btn.textContent = 'Force Sync';
+            loadIndicators(1);
+        }
+
+        async function rotateIdentity() {
+            const btn = document.getElementById('rotate-btn');
+            btn.disabled = true;
+            btn.textContent = 'Rotating...';
+            try {
+                const res = await fetch(API + '/network/rotate', { method: 'POST' });
+                const data = await res.json();
+                showToast(data.message || 'Identity rotated', res.ok ? 'success' : 'error');
+            } catch(e) {
+                showToast('Connection error', 'error');
+            }
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Rotate Proxy';
+        }
+
+        async function addFeed() {
+            const input = document.getElementById('new-feed-url');
+            const url = input.value.trim();
+            if (!url) return;
+            try {
+                const res = await fetch(API + '/feeds', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast('Feed added', 'success');
+                    input.value = '';
+                    loadStats();
+                } else {
+                    showToast(data.detail || data.error || 'Failed', 'error');
+                }
+            } catch(e) {
+                showToast('Connection error', 'error');
+            }
+        }
+
+        document.getElementById('new-feed-url').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') addFeed();
+        });
+
+        window.onload = function() {
+            loadStats();
+            loadIndicators(1);
+        };
+    </script>
+</body>
+</html>

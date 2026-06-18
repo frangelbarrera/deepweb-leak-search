@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgres://deeptrawl:deeptrawl_pass@db:5432/deeptrawl_db
+      - UPSTREAM_PROXY=socks5://tor:9050
+      - TOR_CONTROL_HOST=tor
+      - TOR_CONTROL_PORT=9051
+    depends_on:
+      db:
+        condition: service_healthy
+      tor:
+        condition: service_started
+
+  tor:
+    image: alpine:latest
+    command: >
+      sh -c "apk add --no-cache tor && 
+      echo 'SocksPort 0.0.0.0:9050' > /etc/tor/torrc && 
+      echo 'ControlPort 0.0.0.0:9051' >> /etc/tor/torrc && 
+      echo 'CookieAuthentication 0' >> /etc/tor/torrc && 
+      tor -f /etc/tor/torrc"
+    expose:
+      - "9050"
+      - "9051"
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=deeptrawl
+      - POSTGRES_PASSWORD=deeptrawl_pass
+      - POSTGRES_DB=deeptrawl_db
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deeptrawl -d deeptrawl_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
